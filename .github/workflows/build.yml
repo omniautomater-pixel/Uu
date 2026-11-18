@@ -1,4 +1,4 @@
-name: Build GUI Recorder
+name: Build GUI Recorder (from zip)
 
 on:
   push:
@@ -11,6 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Repo me jo bhi .zip hai use extract karta hai (extract karke upload karne ki zarurat nahi)
+      - name: Unzip mod
+        run: |
+          Z=$(find . -name "*.zip" -not -path "./.git/*" | head -1)
+          if [ -z "$Z" ]; then echo "ERROR: repo me koi .zip nahi mili"; ls -la; exit 1; fi
+          echo "Using zip: $Z"
+          mkdir -p /tmp/mod
+          unzip -q "$Z" -d /tmp/mod
+          B=$(find /tmp/mod -name build.gradle | head -1)
+          if [ -z "$B" ]; then echo "ERROR: zip ke andar build.gradle nahi mili"; find /tmp/mod | head -40; exit 1; fi
+          D=$(dirname "$B")
+          echo "Project dir: $D"
+          echo "PROJ=$D" >> $GITHUB_ENV
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -20,8 +34,8 @@ jobs:
         with:
           gradle-version: current
 
-      # Auto-pick the newest Fabric Loom release so you don't have to look it up
       - name: Pick latest Loom
+        working-directory: ${{ env.PROJ }}
         run: |
           V=$(curl -fsSL https://maven.fabricmc.net/net/fabricmc/fabric-loom/maven-metadata.xml | grep -oP '(?<=<release>)[^<]+' || true)
           echo "Loom from maven: '$V'"
@@ -29,9 +43,10 @@ jobs:
           cat gradle.properties
 
       - name: Build
+        working-directory: ${{ env.PROJ }}
         run: gradle build --no-daemon --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
           name: guirec-mod
-          path: build/libs/*.jar
+          path: ${{ env.PROJ }}/build/libs/*.jar
