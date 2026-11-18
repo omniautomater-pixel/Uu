@@ -1,0 +1,37 @@
+name: Build GUI Recorder
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: current
+
+      # Auto-pick the newest Fabric Loom release so you don't have to look it up
+      - name: Pick latest Loom
+        run: |
+          V=$(curl -fsSL https://maven.fabricmc.net/net/fabricmc/fabric-loom/maven-metadata.xml | grep -oP '(?<=<release>)[^<]+' || true)
+          echo "Loom from maven: '$V'"
+          if [ -n "$V" ]; then sed -i "s/^loom_version=.*/loom_version=$V/" gradle.properties; fi
+          cat gradle.properties
+
+      - name: Build
+        run: gradle build --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guirec-mod
+          path: build/libs/*.jar
